@@ -22,9 +22,29 @@ public class SigninFirebaseServices {
                 .asJson();
 
         if (response.getStatus() == 200) {
+            JSONObject responseData = response.getBody().getObject();
+            
+            // Extract user data from Firebase response
+            String userUid = responseData.optString("localId", "");
+            String userEmail = responseData.optString("email", "");
+            String idToken = responseData.optString("idToken", "");
+            String refreshToken = responseData.optString("refreshToken", "");
+            String displayName = responseData.optString("displayName", "");
+            
+            // Store user session data
+            UserSession session = UserSession.getInstance();
+            session.setSession(userUid, userEmail, idToken, refreshToken);
+            if (displayName != null && !displayName.isEmpty()) {
+                session.setDisplayName(displayName);
+            }
+            
+            System.out.println("SigninFirebaseServices: Login successful - User UID: " + userUid);
+            
             return new JSONObject()
                 .put("status", "success")
-                .put("data", response.getBody().getObject());
+                .put("data", responseData)
+                .put("userUid", userUid)
+                .put("email", userEmail);
         } else {
             return new JSONObject()
                 .put("status", "error")

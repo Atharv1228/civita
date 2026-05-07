@@ -546,11 +546,12 @@ public class HomePageRsident {
 
 }
 
-//maintenance navigation
+//maintenance navigation - now uses UserSession for user UID
 private void initalizeResidentMaintenancePage(){
 Residentmaintenance residentmaintenanceObj = new Residentmaintenance();
 residentmaintenanceObj.setResidentMaintenancePrimaryStage(residentHomePagePrimaryStage);
-residentMaintenancePage2Scene=new Scene(residentmaintenanceObj.createResidentMaintenanceScene(this::handleBackResidentHomePageButton, "50iKugZzqmVWeByI9kKXcFh4hl42"),1600,800);
+// No need to pass userUid - Residentmaintenance uses UserSession automatically
+residentMaintenancePage2Scene=new Scene(residentmaintenanceObj.createResidentMaintenanceScene(this::handleBackResidentHomePageButton),1600,800);
 residentmaintenanceObj.setResidentMaintenance1Scene(residentMaintenancePage2Scene);
 
 }

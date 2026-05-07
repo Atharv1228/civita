@@ -2,6 +2,8 @@ package com.login.View.Electricity;
 
 import com.login.Controller.ResidentElectricityController;
 import com.login.Model.ResidentElectricityModel;
+import com.login.Utils.UserSession;
+import com.login.View.Payment.RazorpayPaymentDialog;
 import javafx.application.Platform;
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
@@ -29,7 +31,7 @@ public class ResidentElectricity {
     
     // Add these fields to store fetched data
     private ResidentElectricityModel currentBillData;
-    private String currentFlatNo = "A 201"; // Change this to match the flat number used by admin
+    private String currentFlatNo; // Will be set from UserSession
     
     // UI elements that need to be updated with fetched data
     private Text residentElectricityBillText;
@@ -159,6 +161,15 @@ public class ResidentElectricity {
 
     public StackPane createResidentElectricityScene(Runnable electricityHomePageResident) {
         try {
+            // Get flat number from UserSession (if available) or use default
+            UserSession session = UserSession.getInstance();
+            if (session.getFlatNo() != null && !session.getFlatNo().isEmpty()) {
+                currentFlatNo = session.getFlatNo();
+            } else {
+                currentFlatNo = "A 201"; // Default fallback
+            }
+            System.out.println("ResidentElectricity: Creating scene for flat: " + currentFlatNo + ", User UID: " + session.getUserUid());
+            
             // Initialize UI elements first
             residentElectricityBillText = new Text();
             updateBillStatus(residentElectricityBillText); // Initial status set here
@@ -442,21 +453,47 @@ public class ResidentElectricity {
                 slideUp.play();
             });
 
-            // On press logic of Pay Electricity
+            // On press logic of Pay Electricity - Now integrates with Razorpay
             payElectricityButton.setOnAction(e -> {
                 try {
-                    // Update payment status in Firebase
-                    ResidentElectricityController.markBillAsPaid(currentFlatNo);
+                    // Get the amount from the current bill data
+                    double amount = 0;
+                    if (currentBillData != null && currentBillData.getElectricityBillAmount() != null) {
+                        amount = currentBillData.getElectricityBillAmount();
+                    } else {
+                        amount = 500; // Default amount if not available
+                    }
                     
-                    // Hide first popup
-                    residentElectricityOverlayVBox.setVisible(false);
-                    // Show second confirmation popup
-                    paymentSuccessOverlayVBox.setVisible(true);
-                    paymentSuccessOverlayVBox.setOpacity(0);
-                    FadeTransition fadeInSuccess = new FadeTransition(Duration.millis(300), paymentSuccessOverlayVBox);
-                    fadeInSuccess.setFromValue(0);
-                    fadeInSuccess.setToValue(1);
-                    fadeInSuccess.play();
+                    // Show Razorpay payment dialog
+                    RazorpayPaymentDialog.showElectricityPayment(
+                        residentElectricityPrimaryStage,
+                        amount,
+                        currentFlatNo,
+                        new RazorpayPaymentDialog.PaymentResultCallback() {
+                            @Override
+                            public void onPaymentSuccess(String orderId) {
+                                // Update payment status in Firebase after successful payment
+                                ResidentElectricityController.markBillAsPaid(currentFlatNo);
+                                
+                                System.out.println("Electricity bill paid successfully via Razorpay - Order ID: " + orderId);
+                                
+                                // Hide first popup
+                                residentElectricityOverlayVBox.setVisible(false);
+                                // Show second confirmation popup
+                                paymentSuccessOverlayVBox.setVisible(true);
+                                paymentSuccessOverlayVBox.setOpacity(0);
+                                FadeTransition fadeInSuccess = new FadeTransition(Duration.millis(300), paymentSuccessOverlayVBox);
+                                fadeInSuccess.setFromValue(0);
+                                fadeInSuccess.setToValue(1);
+                                fadeInSuccess.play();
+                            }
+                            
+                            @Override
+                            public void onPaymentCancelled() {
+                                System.out.println("Electricity payment cancelled by user");
+                            }
+                        }
+                    );
                 } catch (Exception ex) {
                     System.err.println("Error in pay button action: " + ex.getMessage());
                     ex.printStackTrace();

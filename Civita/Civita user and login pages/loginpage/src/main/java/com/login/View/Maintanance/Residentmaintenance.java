@@ -2,7 +2,9 @@ package com.login.View.Maintanance;
 
 
 import com.login.Controller.ResidentMaintenanceController;
-import com.login.Model.ResidentMaintenanceModel; 
+import com.login.Model.ResidentMaintenanceModel;
+import com.login.Utils.UserSession;
+import com.login.View.Payment.RazorpayPaymentDialog; 
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
@@ -52,14 +54,15 @@ public class Residentmaintenance {
     }
 
     /**
-     * Creates the resident maintenance scene, fetching data based on flat number.
+     * Creates the resident maintenance scene, fetching data based on logged-in user.
+     * Uses UserSession to get the current user's UID automatically.
      * @param maintenanceHomePageResident A runnable to navigate back to the home page.
-     * @param userUid The Firebase User ID (UID) of the currently logged-in resident.
      * @return A StackPane containing the maintenance view.
      */
-    public StackPane createResidentMaintenanceScene(Runnable maintenanceHomePageResident, String userUid) {
-       
-  
+    public StackPane createResidentMaintenanceScene(Runnable maintenanceHomePageResident) {
+        // Get the current user's UID from session
+        String userUid = UserSession.getInstance().getUserUid();
+        System.out.println("Residentmaintenance: Creating scene for user UID: " + userUid);
 
         // Maintenance text (not dynamic, static header)
         Text residentMaintenanceHeader = new Text("Your Maintenance Records");
@@ -73,9 +76,8 @@ public class Residentmaintenance {
         maintenanceCardsContainer.setStyle("-fx-background-color: white;");
         HBox.setHgrow(maintenanceCardsContainer, Priority.ALWAYS);
 
-        // **HERE IS THE KEY CHANGE:** Pass the actual userUid to the controller
-        // This will fetch the single document for this UID.
-        List<ResidentMaintenanceModel> maintenanceRecords = ResidentMaintenanceController.getResidentMaintenanceData("50iKugZzqmVWeByI9kKXcFh4hl42");
+        // Fetch maintenance data for the logged-in user using UserSession
+        List<ResidentMaintenanceModel> maintenanceRecords = ResidentMaintenanceController.getResidentMaintenanceData();
 
         if (maintenanceRecords.isEmpty()) {
             Label noRecordsLabel = new Label("No maintenance records found for your flat.");
@@ -86,8 +88,8 @@ public class Residentmaintenance {
             // there will typically be only ONE ResidentMaintenanceModel in the list.
             for (ResidentMaintenanceModel record : maintenanceRecords) {
                 // Generate a card for each maintenance record
-                // Pass the userUid to card creation. The record.getId() will also be the userUid.
-                VBox card = createMaintenanceCard(record, userUid);
+                // Uses UserSession to get the userUid automatically
+                VBox card = createMaintenanceCard(record);
                 maintenanceCardsContainer.getChildren().add(card);
             }
         }
@@ -161,11 +163,12 @@ public class Residentmaintenance {
 
     /**
      * Creates a single maintenance card to display status and due date.
+     * Uses UserSession to get the current user's UID automatically.
      * @param record The ResidentMaintenanceModel for this card.
-     * @param userUid The Firebase User ID (UID) of the currently logged-in user.
      * @return A VBox representing the card.
      */
-    private VBox createMaintenanceCard(ResidentMaintenanceModel record, String userUid) {
+    private VBox createMaintenanceCard(ResidentMaintenanceModel record) {
+        String userUid = UserSession.getInstance().getUserUid();
         Label statusLabel = new Label("Maintenance Status: " + record.getStatus());
         statusLabel.setStyle("-fx-font-size: 30px; -fx-fill: DARKSLATEGRAY; -fx-font-weight: bold; -fx-font-family: Comic Sans MS");
         if ("paid".equalsIgnoreCase(record.getStatus())) {
@@ -220,34 +223,65 @@ public class Residentmaintenance {
             }
 
             // Set action for Pay Maintenance button for *this specific record*
+            // Now integrates with Razorpay for actual payment processing
             payMaintenanceButtonInPopup.setOnAction(event -> {
-                boolean success = ResidentMaintenanceController.updateMaintenanceStatus(
-                    "50iKugZzqmVWeByI9kKXcFh4hl42", // **PASS THE ACTUAL USER UID HERE**
-                    record.getId(), // This will also be the userUid, but passing it for consistency.
-                    "paid"
-                );
-
-                if (success) {
-                    System.out.println("Maintenance paid successfully for User UID: " + userUid);
-                    record.setStatus("paid"); // Update local model
-                    statusLabel.setText("Maintenance Status: Paid"); // Update card UI
-                    statusLabel.setStyle(statusLabel.getStyle() + "; -fx-text-fill: green;"); // Change color
-                    payMaintenanceButtonInPopup.setDisable(true);
-                    payMaintenanceButtonInPopup.setText("PAID");
-                    payMaintenanceButtonInPopup.setStyle(payMaintenanceButtonInPopup.getStyle() + "; -fx-background-color: gray; -fx-border-color: gray;");
-
-                    // Show success popup
-                    residentMaintenancePopUpOverlay.setVisible(false); // Hide details popup
-                    paymentSuccessOverlay.setVisible(true);
-                    paymentSuccessOverlay.setOpacity(0);
-                    FadeTransition fadeInSuccess = new FadeTransition(Duration.millis(300), paymentSuccessOverlay);
-                    fadeInSuccess.setFromValue(0);
-                    fadeInSuccess.setToValue(1);
-                    fadeInSuccess.play();
-
-                } else {
-                    showAlert(Alert.AlertType.ERROR, "Payment Failed", "Could not process payment. Please try again.");
+                // Parse the amount from the record
+                double amount = 0;
+                try {
+                    String amountStr = record.getAmount().replaceAll("[^\\d.]", "");
+                    amount = Double.parseDouble(amountStr);
+                } catch (Exception ex) {
+                    amount = 1000; // Default amount if parsing fails
                 }
+                
+                String flatNo = UserSession.getInstance().getFlatNo();
+                if (flatNo == null || flatNo.isEmpty()) {
+                    flatNo = "A 101"; // Default flat number
+                }
+                
+                // Show Razorpay payment dialog
+                final String finalFlatNo = flatNo;
+                RazorpayPaymentDialog.showMaintenancePayment(
+                    residentMaintenancePrimaryStage,
+                    amount,
+                    finalFlatNo,
+                    new RazorpayPaymentDialog.PaymentResultCallback() {
+                        @Override
+                        public void onPaymentSuccess(String orderId) {
+                            // Update the status in Firebase after successful payment
+                            boolean success = ResidentMaintenanceController.updateMaintenanceStatus(
+                                record.getId(),
+                                "paid"
+                            );
+
+                            if (success) {
+                                System.out.println("Maintenance paid successfully via Razorpay - Order ID: " + orderId);
+                                record.setStatus("paid"); // Update local model
+                                statusLabel.setText("Maintenance Status: Paid"); // Update card UI
+                                statusLabel.setStyle(statusLabel.getStyle() + "; -fx-text-fill: green;"); // Change color
+                                payMaintenanceButtonInPopup.setDisable(true);
+                                payMaintenanceButtonInPopup.setText("PAID");
+                                payMaintenanceButtonInPopup.setStyle(payMaintenanceButtonInPopup.getStyle() + "; -fx-background-color: gray; -fx-border-color: gray;");
+
+                                // Show success popup
+                                residentMaintenancePopUpOverlay.setVisible(false); // Hide details popup
+                                paymentSuccessOverlay.setVisible(true);
+                                paymentSuccessOverlay.setOpacity(0);
+                                FadeTransition fadeInSuccess = new FadeTransition(Duration.millis(300), paymentSuccessOverlay);
+                                fadeInSuccess.setFromValue(0);
+                                fadeInSuccess.setToValue(1);
+                                fadeInSuccess.play();
+                            } else {
+                                showAlert(Alert.AlertType.ERROR, "Update Failed", "Payment was successful but failed to update status. Please contact support.");
+                            }
+                        }
+
+                        @Override
+                        public void onPaymentCancelled() {
+                            System.out.println("Maintenance payment cancelled by user");
+                        }
+                    }
+                );
             });
 
 
