@@ -15,10 +15,9 @@ import java.net.URI;
  */
 public class RazorpayPaymentService {
     
-    // Razorpay API Keys - Replace with your actual keys
-    // For testing, use test keys from Razorpay Dashboard
-    private static final String RAZORPAY_KEY_ID = "rzp_test_YOUR_KEY_ID";
-    private static final String RAZORPAY_KEY_SECRET = "YOUR_KEY_SECRET";
+    // Razorpay API Keys - Test keys configured
+    private static final String RAZORPAY_KEY_ID = "rzp_test_SmUtkzHdbIA6zr";
+    private static final String RAZORPAY_KEY_SECRET = "K7AxZDGL3S1BVOGb2nCSR9aj";
     
     private static RazorpayClient razorpayClient;
     
