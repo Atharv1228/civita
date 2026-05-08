@@ -24,7 +24,7 @@ public class Firebase_notifyInitializer {
                 
                 if (FirebaseApp.getApps().isEmpty()) {
                     // Use the correct path to the service account key
-                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
+                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\firebase-key.json");
 
                     FirebaseOptions options = FirebaseOptions.builder()
                             .setCredentials(GoogleCredentials.fromStream(serviceAccount))

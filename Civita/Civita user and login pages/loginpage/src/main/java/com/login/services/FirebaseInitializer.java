@@ -21,7 +21,7 @@ public class FirebaseInitializer {
                 if (FirebaseApp.getApps().isEmpty()) {
                     // Adjust the path to your service account key file
                     // It's recommended to place this in src/main/resources
-                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
+                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\firebase-key.json");
 
                     FirebaseOptions options = FirebaseOptions.builder()
                             .setCredentials(GoogleCredentials.fromStream(serviceAccount))
