@@ -17,27 +17,28 @@ public class FirebaseInitializer {
     public static void initialize() {
         if (!initialized) {
             try {
-                // Adjust the path to your service account key file
-                // It's recommended to place this in src/main/resources
-                FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
+                // Check if Firebase is already initialized
+                if (FirebaseApp.getApps().isEmpty()) {
+                    // Adjust the path to your service account key file
+                    // It's recommended to place this in src/main/resources
+                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
 
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .setDatabaseUrl("https://civita-alpha-default-rtdb.firebaseio.com/")
-                        .build();
+                    FirebaseOptions options = FirebaseOptions.builder()
+                            .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                            .setDatabaseUrl("https://civita-alpha-default-rtdb.firebaseio.com/")
+                            .build();
 
-                FirebaseApp.initializeApp(options);
-                initialized = true;
-                System.out.println("Firebase initialized successfully.");
+                    FirebaseApp.initializeApp(options);
+                    initialized = true;
+                    System.out.println("[FirebaseInitializer] ✅ Firebase initialized successfully.");
+                } else {
+                    initialized = true;
+                    System.out.println("[FirebaseInitializer] Firebase already initialized.");
+                }
             } catch (IOException e) {
-                System.err.println("Error initializing Firebase: " + e.getMessage());
+                System.err.println("[FirebaseInitializer] ❌ Error initializing Firebase: " + e.getMessage());
                 e.printStackTrace();
             }
         }
     }
-
-    // public static void init() {
-    //     // TODO Auto-generated method stub
-    //     throw new UnsupportedOperationException("Unimplemented method 'init'");
-    // }
 }

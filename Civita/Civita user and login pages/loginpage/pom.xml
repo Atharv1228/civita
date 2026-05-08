@@ -34,10 +34,17 @@
     </dependency>
 
 
-  <dependency>
-    <groupId>com.rojoma</groupId>
-    <artifactId>simple-arm-v2_2.12</artifactId>
-    <version>2.3.3</version>
-  </dependency>
+    <dependency>
+        <groupId>com.rojoma</groupId>
+        <artifactId>simple-arm-v2_2.12</artifactId>
+        <version>2.3.3</version>
+    </dependency>
+
+    <dependency>
+        <groupId>com.razorpay</groupId>
+        <artifactId>razorpay-java</artifactId>
+        <version>1.4.5</version>
+    </dependency>
+
 </dependencies>
 </project>
