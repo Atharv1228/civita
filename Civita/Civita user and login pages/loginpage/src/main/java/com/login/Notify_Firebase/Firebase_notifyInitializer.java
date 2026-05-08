@@ -1,33 +1,31 @@
 package com.login.Notify_Firebase;
 
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
 import com.google.cloud.firestore.Firestore;
 import com.google.firebase.cloud.FirestoreClient;
-
-import java.io.FileInputStream;
-import java.io.IOException;
+import com.login.services.FirebaseInitialize;
 
 public class Firebase_notifyInitializer {
+    
     public static void init() {
-        try {
-            // 🔍 Add this line to debug file path
-            System.out.println("Working Dir: " + System.getProperty("user.dir"));
-            FileInputStream serviceAccount = new FileInputStream("demo/src/main/resources/firebase-key.json");
-
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .build();
-
-            FirebaseApp.initializeApp(options);
-            System.out.println("✅ Firebase initialized successfully");
-        } catch (IOException e) {
-            e.printStackTrace(); // 🔥 Always print for debugging
+        // Use centralized Firebase initialization instead of separate initialization
+        if (FirebaseApp.getApps().isEmpty()) {
+            System.out.println("Firebase not initialized, initializing via FirebaseInitialize...");
+            FirebaseInitialize.initialize();
+        }
+        
+        if (!FirebaseApp.getApps().isEmpty()) {
+            System.out.println("Firebase initialized successfully for notifications");
+        } else {
+            System.err.println("WARNING: Firebase could not be initialized");
         }
     }
 
     public static Firestore getFirestore() {
+        // Ensure Firebase is initialized before getting Firestore
+        if (FirebaseApp.getApps().isEmpty()) {
+            init();
+        }
         return FirestoreClient.getFirestore();
     }
 }

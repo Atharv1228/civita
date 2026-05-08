@@ -3,31 +3,23 @@ package com.login.Utils;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.database.*;
 import com.login.Model.ResidentElectricityModel;
+import com.login.services.FirebaseInitialize;
+
 import java.util.concurrent.CompletableFuture;
-import java.io.FileInputStream;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.firebase.FirebaseOptions;
 
 public class ResidentElectricityServices {
     
     private static void ensureFirebaseInitialized() {
-        try {
-            FirebaseApp.getInstance();
-            System.out.println("Firebase is already initialized");
-        } catch (IllegalStateException e) {
-            try {
-                System.out.println("Initializing Firebase...");
-                FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
-                FirebaseOptions options = new FirebaseOptions.Builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .setDatabaseUrl("https://civita-alpha-default-rtdb.firebaseio.com/")
-                    .build();
-                FirebaseApp.initializeApp(options);
-                System.out.println("Firebase initialized successfully");
-            } catch (Exception initException) {
-                System.err.println("Failed to initialize Firebase: " + initException.getMessage());
-                initException.printStackTrace();
-            }
+        // Use centralized Firebase initialization
+        if (FirebaseApp.getApps().isEmpty()) {
+            System.out.println("Firebase not initialized, initializing via FirebaseInitialize...");
+            FirebaseInitialize.initialize();
+        }
+        
+        if (FirebaseApp.getApps().isEmpty()) {
+            System.err.println("WARNING: Firebase still not initialized after attempt");
+        } else {
+            System.out.println("Firebase is ready");
         }
     }
     
@@ -44,7 +36,6 @@ public class ResidentElectricityServices {
             System.out.println("Flat Number: " + flatNo);
             System.out.println("Firebase Path: electricityBills/" + flatNo);
             
-            // Fetch all data for this flat without any ordering or limiting
             electricityBillsRef.addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
@@ -60,7 +51,6 @@ public class ResidentElectricityServices {
                         if (dataSnapshot.exists() && dataSnapshot.hasChildren()) {
                             System.out.println("=== PROCESSING CHILDREN ===");
                             
-                            // Find the latest bill entry by iterating through all children
                             String latestBillId = null;
                             DataSnapshot latestBillSnapshot = null;
                             
@@ -68,7 +58,6 @@ public class ResidentElectricityServices {
                                 String billId = billSnapshot.getKey();
                                 System.out.println("Found bill ID: " + billId);
                                 
-                                // Firebase push IDs are chronologically ordered, so we can compare them
                                 if (latestBillId == null || billId.compareTo(latestBillId) > 0) {
                                     latestBillId = billId;
                                     latestBillSnapshot = billSnapshot;
@@ -79,24 +68,14 @@ public class ResidentElectricityServices {
                                 System.out.println("=== PROCESSING LATEST BILL ===");
                                 System.out.println("Latest bill ID: " + latestBillId);
                                 
-                                // Print all children of the latest bill
-                                System.out.println("Bill data structure:");
                                 for (DataSnapshot child : latestBillSnapshot.getChildren()) {
-                                    System.out.println("  " + child.getKey() + ": " + child.getValue() + " (Type: " + 
-                                        (child.getValue() != null ? child.getValue().getClass().getSimpleName() : "null") + ")");
+                                    System.out.println("  " + child.getKey() + ": " + child.getValue());
                                 }
                                 
-                                // Extract data with multiple approaches
                                 Object amountObj = latestBillSnapshot.child("amount").getValue();
                                 Object dateObj = latestBillSnapshot.child("date").getValue();
                                 Object imagePathObj = latestBillSnapshot.child("imagePath").getValue();
                                 
-                                System.out.println("=== RAW DATA EXTRACTION ===");
-                                System.out.println("Amount object: " + amountObj);
-                                System.out.println("Date object: " + dateObj);
-                                System.out.println("ImagePath object: " + imagePathObj);
-                                
-                                // Process amount
                                 Double amount = null;
                                 if (amountObj != null) {
                                     try {
@@ -105,27 +84,14 @@ public class ResidentElectricityServices {
                                         } else if (amountObj instanceof String) {
                                             amount = Double.parseDouble((String) amountObj);
                                         }
-                                        System.out.println("Processed amount: " + amount);
                                     } catch (Exception e) {
                                         System.err.println("Error processing amount: " + e.getMessage());
                                     }
                                 }
                                 
-                                // Process date
-                                String date = null;
-                                if (dateObj != null) {
-                                    date = dateObj.toString();
-                                    System.out.println("Processed date: " + date);
-                                }
+                                String date = dateObj != null ? dateObj.toString() : null;
+                                String imagePath = imagePathObj != null ? imagePathObj.toString() : null;
                                 
-                                // Process image path
-                                String imagePath = null;
-                                if (imagePathObj != null) {
-                                    imagePath = imagePathObj.toString();
-                                    System.out.println("Processed imagePath: " + imagePath);
-                                }
-                                
-                                // Set the data
                                 billData.setElectricityBillAmount(amount);
                                 billData.setElectricityBillDate(date);
                                 billData.setElectricityBillImagePath(imagePath);
@@ -133,14 +99,11 @@ public class ResidentElectricityServices {
                                 System.out.println("=== FINAL BILL DATA ===");
                                 System.out.println("Final amount: " + billData.getElectricityBillAmount());
                                 System.out.println("Final date: " + billData.getElectricityBillDate());
-                                System.out.println("Final imagePath: " + billData.getElectricityBillImagePath());
                                 
                             } else {
-                                System.out.println("No valid bill snapshot found");
                                 setDefaultValues(billData);
                             }
                         } else {
-                            System.out.println("=== NO DATA FOUND ===");
                             System.out.println("No electricity bill data exists for flat: " + flatNo);
                             setDefaultValues(billData);
                         }
@@ -148,8 +111,7 @@ public class ResidentElectricityServices {
                         future.complete(billData);
                         
                     } catch (Exception e) {
-                        System.err.println("=== ERROR IN DATA PROCESSING ===");
-                        System.err.println("Error: " + e.getMessage());
+                        System.err.println("Error in data processing: " + e.getMessage());
                         e.printStackTrace();
                         
                         ResidentElectricityModel errorBillData = new ResidentElectricityModel();
@@ -161,10 +123,7 @@ public class ResidentElectricityServices {
                 
                 @Override
                 public void onCancelled(DatabaseError databaseError) {
-                    System.err.println("=== FIREBASE ERROR ===");
-                    System.err.println("Error message: " + databaseError.getMessage());
-                    System.err.println("Error code: " + databaseError.getCode());
-                    System.err.println("Error details: " + databaseError.getDetails());
+                    System.err.println("Firebase error: " + databaseError.getMessage());
                     
                     ResidentElectricityModel errorBillData = new ResidentElectricityModel();
                     errorBillData.setFlatNo(flatNo);
@@ -174,8 +133,7 @@ public class ResidentElectricityServices {
             });
             
         } catch (Exception e) {
-            System.err.println("=== EXCEPTION IN FETCH METHOD ===");
-            System.err.println("Exception: " + e.getMessage());
+            System.err.println("Exception in fetch method: " + e.getMessage());
             e.printStackTrace();
             
             ResidentElectricityModel errorBillData = new ResidentElectricityModel();
