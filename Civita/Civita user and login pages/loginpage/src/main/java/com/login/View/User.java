@@ -15,10 +15,12 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import com.login.Controller.UserController;
+import com.login.Controller.SigninController;
 
 import com.login.Model.UserProfile;
 import com.login.View.AuthenticationPages.SignupPage;
 import com.login.services.FirebaseInitialize;
+import com.login.Utils.UserSession;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -69,8 +71,8 @@ public class User {
         this.userProfilePrimaryStage = userProfilePrimaryStage;
     }
 
-    // Firebase user ID
-    private static final String USER_UID = "50iKugZzqmVWeByI9kKXcFh4hl42";
+    // Firebase user ID - now dynamically fetched from session
+    private String USER_UID = UserSession.getInstance().getUid();
 
     Map<String, Object> myMap;
     String name;
@@ -123,16 +125,38 @@ public class User {
             "-fx-alignment: CENTER;";
 
     public User() {
-        // Initialize with loading state
-        this.name = "Loading...";
-        this.email = "Loading...";
-        this.flatNo = "Loading...";
+        // Use UserSession to get logged-in user's data instead of hardcoded UID
+        UserSession session = UserSession.getInstance();
         
-        ap.setFullName(name);
-        ap.setEmail(email);
-        
-        // Fetch data from Firebase asynchronously
-        fetchUserDataAsync();
+        if (session.isLoggedIn()) {
+            // Use session data directly
+            this.name = session.getFullName();
+            this.email = session.getEmail();
+            this.flatNo = session.getFlatNo();
+            this.USER_UID = session.getUid();
+            
+            ap.setFullName(name);
+            ap.setEmail(email);
+            
+            // Set label text after data is ready
+            NameLabel.setText(name != null ? name : "User");
+            emailLabel.setText(email != null ? email : "user@civita.com");
+            nameHeaderLabel.setText(name != null ? name : "User");
+            flatNumberLabel.setText(flatNo != null ? flatNo : "Not specified");
+            
+            System.out.println("User loaded from session: " + name + " (" + email + ")");
+        } else {
+            // Initialize with loading state and fetch asynchronously
+            this.name = "Loading...";
+            this.email = "Loading...";
+            this.flatNo = "Loading...";
+            
+            ap.setFullName(name);
+            ap.setEmail(email);
+            
+            // Fetch data from Firebase asynchronously
+            fetchUserDataAsync();
+        }
     }
 
     /**
@@ -221,87 +245,95 @@ public class User {
     public Map<String, Object> fetchuserData() {
         Map<String, Object> myMap = new HashMap<>();
         
+        // First try to get data from UserSession
+        UserSession session = UserSession.getInstance();
+        if (session.isLoggedIn()) {
+            myMap.put("fullName", session.getFullName());
+            myMap.put("email", session.getEmail());
+            myMap.put("flatNo", session.getFlatNo());
+            System.out.println("User data from session: " + myMap);
+            return myMap;
+        }
+        
+        // Fallback to Firebase if session not available
         try {
-            System.out.println("🔄 Fetching user data from Firebase...");
+            System.out.println("Fetching user data from Firebase...");
             
             Firestore db = FirebaseInitialize.getDB();
             if (db == null) {
-                System.err.println(" Firebase database is not initialized");
+                System.err.println("Firebase database is not initialized");
+                myMap.put("fullName", "User");
+                myMap.put("email", "user@civita.com");
+                myMap.put("flatNo", "Unknown");
+                return myMap;
+            }
+            
+            String uid = USER_UID != null ? USER_UID : session.getUid();
+            if (uid == null || uid.isEmpty()) {
+                System.err.println("No user UID available");
+                myMap.put("fullName", "User");
+                myMap.put("email", "user@civita.com");
+                myMap.put("flatNo", "Unknown");
                 return myMap;
             }
             
             // Fetch from users collection with the specific UID
             DocumentSnapshot document = db.collection("users")
-                                        .document(USER_UID)
+                                        .document(uid)
                                         .get()
                                         .get();
             
             if (document.exists()) {
-                System.out.println(" Document found in 'users' collection");
+                System.out.println("Document found in 'users' collection");
                 
-                // Extract data from document
                 Object fullNameObj = document.get("fullName");
                 Object emailObj = document.get("email");
                 Object flatNoObj = document.get("flatNo");
                 
-                // Safely add to map
-                myMap.put("fullName", fullNameObj);
-                myMap.put("email", emailObj);
-                myMap.put("flatNo", flatNoObj);
-                
-                System.out.println(" Document data: " + document.getData());
+                myMap.put("fullName", fullNameObj != null ? fullNameObj : "User");
+                myMap.put("email", emailObj != null ? emailObj : "user@civita.com");
+                myMap.put("flatNo", flatNoObj != null ? flatNoObj : "Unknown");
                 
             } else {
-                System.out.println(" Document does not exist in 'users' collection");
-                System.out.println(" Trying 'admins' collection as fallback...");
-                
                 // Try admins collection as fallback
                 DocumentSnapshot adminDocument = db.collection("admins")
-                                                  .document(USER_UID)
+                                                  .document(uid)
                                                   .get()
                                                   .get();
                 
                 if (adminDocument.exists()) {
-                    System.out.println(" Document found in 'admins' collection");
+                    System.out.println("Document found in 'admins' collection");
                     
                     Object fullNameObj = adminDocument.get("fullName");
                     Object emailObj = adminDocument.get("email");
                     Object flatNoObj = adminDocument.get("flatNo");
                     
-                    myMap.put("fullName", fullNameObj);
-                    myMap.put("email", emailObj);
-                    myMap.put("flatNo", flatNoObj);
-                    
-                    System.out.println(" Admin document data: " + adminDocument.getData());
+                    myMap.put("fullName", fullNameObj != null ? fullNameObj : "User");
+                    myMap.put("email", emailObj != null ? emailObj : "user@civita.com");
+                    myMap.put("flatNo", flatNoObj != null ? flatNoObj : "Unknown");
                 } else {
-                    System.out.println(" Document not found in either 'users' or 'admins' collection");
-                    myMap.put("fullName", null);
-                    myMap.put("email", null);
-                    myMap.put("flatNo", null);
+                    System.out.println("Document not found in database");
+                    myMap.put("fullName", "User");
+                    myMap.put("email", "user@civita.com");
+                    myMap.put("flatNo", "Unknown");
                 }
             }
             
-        } catch (InterruptedException e) {
-            System.err.println(" InterruptedException while fetching user data: " + e.getMessage());
+        } catch (InterruptedException | ExecutionException e) {
+            System.err.println("Error fetching user data: " + e.getMessage());
             e.printStackTrace();
-            myMap.put("fullName", null);
-            myMap.put("email", null);
-            myMap.put("flatNo", null);
-        } catch (ExecutionException e) {
-            System.err.println(" ExecutionException while fetching user data: " + e.getMessage());
-            e.printStackTrace();
-            myMap.put("fullName", null);
-            myMap.put("email", null);
-            myMap.put("flatNo", null);
+            myMap.put("fullName", "User");
+            myMap.put("email", "user@civita.com");
+            myMap.put("flatNo", "Unknown");
         } catch (Exception e) {
-            System.err.println(" Unexpected error while fetching user data: " + e.getMessage());
+            System.err.println("Unexpected error: " + e.getMessage());
             e.printStackTrace();
-            myMap.put("fullName", null);
-            myMap.put("email", null);
-            myMap.put("flatNo", null);
+            myMap.put("fullName", "User");
+            myMap.put("email", "user@civita.com");
+            myMap.put("flatNo", "Unknown");
         }
         
-        System.out.println(" Final fetched data: " + myMap);
+        System.out.println("Final fetched data: " + myMap);
         return myMap;
     }
 
@@ -901,6 +933,10 @@ public class User {
             faqBtn.setOnAction(e -> showFaq());
             ppBtn.setOnAction(e -> showPrivacyPolicy());
             logoutBtn.setOnAction(e -> {
+                // Clear the user session on logout
+                SigninController.logoutUser();
+                System.out.println("User logged out");
+                
                 initalizeSignupPage3();
                 userProfilePrimaryStage.setScene(signup3Scene);
             });

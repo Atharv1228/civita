@@ -75,15 +75,8 @@ public class AdminElectricity {
 
     public StackPane createAdminElectricityScene(Runnable electricityHomePageAdmin) {
 
-        try {
-            if (FirebaseApp.getApps().isEmpty()) {
-                FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
-                FirebaseOptions options = new FirebaseOptions.Builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).setDatabaseUrl("https://civita-alpha-default-rtdb.firebaseio.com/").build();
-                FirebaseApp.initializeApp(options);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // Firebase is now initialized centrally via FirebaseInitialize
+        // No need for manual initialization here
 
         // --- Flat Details Display (Potentially for selected flat, or just a header) ---
         // For now, this flatDetailsVBox is static. If you want it to show details of the clicked flat,

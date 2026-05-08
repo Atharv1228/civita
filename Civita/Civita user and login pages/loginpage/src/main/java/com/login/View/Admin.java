@@ -10,10 +10,12 @@ import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 
 import com.login.Controller.AdminProfileController;
+import com.login.Controller.SigninController;
 
 import com.login.Model.AdminProfile;
 import com.login.View.AuthenticationPages.SignupPage;
 import com.login.services.FirebaseInitialize;
+import com.login.Utils.UserSession;
 
 
 import javafx.geometry.Insets;
@@ -64,22 +66,51 @@ public class Admin {
     AdminProfile ap=new AdminProfile();
 
     public Admin() {
-        Map<String, Object> myMap = fetchAdminData();
-        this.myMap = myMap;
-    
-        this.name = myMap.get("fullName").toString();
-        this.email = myMap.get("email").toString();
-    
-        ap.setFullName(name);
-        ap.setEmail(email);
-    
-        // ✅ Set label text after data is ready
-        firstNameLabel.setText(ap.getFullName());
-        emailLabel.setText(ap.getEmail());
-        nameHeaderLabel.setText(ap.getFullName());
-    
-        System.out.println(name);
-        System.out.println(email);
+        // Use UserSession to get logged-in admin's data instead of hardcoded UID
+        UserSession session = UserSession.getInstance();
+        
+        if (session.isLoggedIn()) {
+            // Use session data directly
+            this.name = session.getFullName();
+            this.email = session.getEmail();
+            this.loggedInAdminUid = session.getUid();
+            
+            ap.setFullName(name);
+            ap.setEmail(email);
+            
+            // Set label text after data is ready
+            firstNameLabel.setText(name != null ? name : "Admin");
+            emailLabel.setText(email != null ? email : "admin@civita.com");
+            nameHeaderLabel.setText(name != null ? name : "Admin");
+            
+            System.out.println("Admin loaded from session: " + name + " (" + email + ")");
+        } else {
+            // Fallback to fetching from Firebase if session not available
+            try {
+                Map<String, Object> myMap = fetchAdminData();
+                this.myMap = myMap;
+                
+                this.name = myMap.get("fullName") != null ? myMap.get("fullName").toString() : "Admin";
+                this.email = myMap.get("email") != null ? myMap.get("email").toString() : "admin@civita.com";
+                
+                ap.setFullName(name);
+                ap.setEmail(email);
+                
+                firstNameLabel.setText(ap.getFullName());
+                emailLabel.setText(ap.getEmail());
+                nameHeaderLabel.setText(ap.getFullName());
+                
+                System.out.println("Admin loaded from Firebase: " + name);
+            } catch (Exception e) {
+                System.err.println("Error loading admin data: " + e.getMessage());
+                // Set default values
+                this.name = "Admin";
+                this.email = "admin@civita.com";
+                firstNameLabel.setText(name);
+                emailLabel.setText(email);
+                nameHeaderLabel.setText(name);
+            }
+        }
     }
     
 
@@ -109,7 +140,8 @@ public class Admin {
 
     VBox mainContent = new VBox(30);
     private AdminProfileController adminProfileController = new AdminProfileController();
-    private String loggedInAdminUid = "vJFgtONr5Pz7L8wr0oYs";
+    // Dynamic UID from session - no longer hardcoded
+    private String loggedInAdminUid = UserSession.getInstance().getUid();
 
     // Sidebar button style constants
     private static final String SIDEBAR_BTN_BASE_STYLE =
@@ -180,18 +212,67 @@ public class Admin {
     }
 
     public Map<String,Object> fetchAdminData() {
-
-        Map<String,Object> myMap=new HashMap<>();
-        Firestore db=FirebaseInitialize.getDB();
-        DocumentSnapshot document=null;
-        try {
-             document=db.collection("admins").document(loggedInAdminUid).get().get();
-        } catch (InterruptedException e) {
-   
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
+        Map<String,Object> myMap = new HashMap<>();
+        
+        // First try to get data from UserSession
+        UserSession session = UserSession.getInstance();
+        if (session.isLoggedIn() && session.isAdmin()) {
+            myMap.put("fullName", session.getFullName());
+            myMap.put("email", session.getEmail());
+            System.out.println("Admin data from session: " + myMap);
+            return myMap;
         }
+        
+        // Fallback to Firebase if session not available
+        try {
+            Firestore db = FirebaseInitialize.getDB();
+            if (db == null) {
+                System.err.println("Firebase not initialized");
+                myMap.put("fullName", "Admin");
+                myMap.put("email", "admin@civita.com");
+                return myMap;
+            }
+            
+            String uid = loggedInAdminUid != null ? loggedInAdminUid : session.getUid();
+            if (uid == null || uid.isEmpty()) {
+                System.err.println("No admin UID available");
+                myMap.put("fullName", "Admin");
+                myMap.put("email", "admin@civita.com");
+                return myMap;
+            }
+            
+            DocumentSnapshot document = db.collection("admins").document(uid).get().get();
+            
+            if (document.exists()) {
+                Object fullName = document.get("fullName");
+                Object email = document.get("email");
+                myMap.put("fullName", fullName != null ? fullName : "Admin");
+                myMap.put("email", email != null ? email : "admin@civita.com");
+            } else {
+                // Try users collection as fallback
+                document = db.collection("users").document(uid).get().get();
+                if (document.exists()) {
+                    Object fullName = document.get("fullName");
+                    Object email = document.get("email");
+                    myMap.put("fullName", fullName != null ? fullName : "Admin");
+                    myMap.put("email", email != null ? email : "admin@civita.com");
+                } else {
+                    myMap.put("fullName", "Admin");
+                    myMap.put("email", "admin@civita.com");
+                }
+            }
+            
+            System.out.println("Admin data from Firebase: " + myMap);
+            
+        } catch (InterruptedException | ExecutionException e) {
+            System.err.println("Error fetching admin data: " + e.getMessage());
+            e.printStackTrace();
+            myMap.put("fullName", "Admin");
+            myMap.put("email", "admin@civita.com");
+        }
+        
+        return myMap;
+    }
 
         myMap.put("fullName", document.get("fullName"));
         myMap.put("email",document.get("email"));
@@ -779,10 +860,12 @@ public BorderPane createAdminProfileScene(Runnable adminProfileReturnBackToTheHo
             ppBtn.setOnAction(e -> showPrivacyPolicy());
 
             logoutBtn.setOnAction(e -> {
-
+                // Clear the user session on logout
+                SigninController.logoutUser();
+                System.out.println("Admin logged out");
+                
                 initalizeSignupPage();
                 adminProfilePrimaryStage.setScene(signupPage3Scene);
-              
             });
 
 

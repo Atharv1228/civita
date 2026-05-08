@@ -5,10 +5,12 @@ import com.login.View.aboutt;
 import com.login.View.choose;
 import com.login.View.HomePages.HomePageAdmin;
 import com.login.View.HomePages.HomePageRsident;
+import com.login.Utils.UserSession;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.Region;
@@ -31,15 +33,21 @@ public class OptionPage  {
         }
       
         public VBox createOptionScene(){
-
-
+        
+        // Get the current user's role from session
+        UserSession session = UserSession.getInstance();
+        String userRole = session.getRole();
+        boolean isAdmin = session.isAdmin();
+        boolean isResident = session.isResident();
+        
+        System.out.println("OptionPage loaded for user: " + session.getFullName() + " with role: " + userRole);
         
         //Admin text 
 
         Text adminTx = new Text("Admin");
         adminTx.setStyle("-fx-font-size: 24px; -fx-fill: DARKSLATEGRAY; -fx-font-weight: bold; -fx-font-family: Comic Sans MS");
 
-        //Recident Text
+        //Resident Text
 
          Text residentTx = new Text("Resident");
         residentTx.setStyle("-fx-font-size: 24px; -fx-fill: DARKSLATEGRAY; -fx-font-weight: bold; -fx-font-family: Comic Sans MS");
@@ -63,21 +71,26 @@ public class OptionPage  {
         
         );
        adminVBox.setPrefSize(400, 50);                                     // preferred size
-       adminVBox.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);  // don’t stretch
+       adminVBox.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);  // don't stretch
 
 
-//admin vBox VBox click       
+//admin vBox VBox click - ROLE BASED ACCESS CONTROL     
       adminVBox.setOnMouseClicked(e -> {
-
-        try {
-                System.out.println("adminvbox clicked");
+        // Only allow admin role to access admin features
+        if (isAdmin) {
+            try {
+                System.out.println("Admin access granted for: " + session.getFullName());
                 initalizeAdminHomePage();
                 optionPagePrimaryStage.setScene(adminPage2Scene);
-        } catch (Exception adminpageException) {
+            } catch (Exception adminpageException) {
                 adminpageException.printStackTrace();
+            }
+        } else {
+            // Show access denied message for non-admin users
+            showAccessDeniedAlert("Admin Access Restricted", 
+                "You do not have admin privileges. Only users registered as Admin can access this section.");
+            System.out.println("Admin access denied for user: " + session.getFullName() + " (Role: " + userRole + ")");
         }
-
-   
     });
 
 
@@ -99,19 +112,23 @@ public class OptionPage  {
        residentVBox.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE); 
 
 
-//resident VBox click logic      
+//resident VBox click logic - ROLE BASED ACCESS CONTROL      
        residentVBox.setOnMouseClicked(e -> {  
-
-
-        try {
+        // Allow both admin and resident roles to access resident features
+        // Admin can view resident pages too for oversight
+        if (isResident || isAdmin) {
+            try {
+                System.out.println("Resident access granted for: " + session.getFullName());
                 initalizeResidentHomePage();
                 optionPagePrimaryStage.setScene(residentHomePage2Scene);
-        } catch (Exception residentHomePageexception) {
+            } catch (Exception residentHomePageexception) {
                 residentHomePageexception.printStackTrace();
+            }
+        } else {
+            showAccessDeniedAlert("Resident Access Restricted", 
+                "You need to be a registered Resident or Admin to access this section.");
+            System.out.println("Resident access denied for user: " + session.getFullName() + " (Role: " + userRole + ")");
         }
-
-
-        
     });
 
  
@@ -131,12 +148,12 @@ public class OptionPage  {
        guestVBox.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE); 
 
 
-//Guest VBox click       
+//Guest VBox click - Guest can be accessed by anyone (for browsing available flats, etc.)      
        guestVBox.setOnMouseClicked(e -> {                                 
-        // write on press code here
+        // Guest mode is available to all users
         initalizeGuestOption();
         optionPagePrimaryStage.setScene(guest2Scene);
-       System.out.println("guestVBox button clicked!");
+       System.out.println("Guest mode accessed by: " + session.getFullName());
        });
 //Guest VBox hover
         guestVBox.setOnMouseEntered(e -> {
@@ -153,6 +170,14 @@ public class OptionPage  {
         residentVBox.setEffect(shadow);
         guestVBox.setEffect(shadow);
 
+        // Visual indicator for disabled options based on role
+        if (!isAdmin) {
+            // Dim the admin option for non-admin users
+            adminTx.setStyle("-fx-font-size: 24px; -fx-fill: #888888; -fx-font-weight: bold; -fx-font-family: Comic Sans MS");
+            Text adminLockText = new Text(" (Admin Only)");
+            adminLockText.setStyle("-fx-font-size: 14px; -fx-fill: #cc0000; -fx-font-family: Comic Sans MS");
+            adminVBox.getChildren().add(adminLockText);
+        }
  
       //  Adding a About button
 
@@ -165,25 +190,28 @@ public class OptionPage  {
 
                 // Add action
                 aboutButton.setOnAction(e -> {
-                        System.out.println("Back button clicked!");
+                        System.out.println("About button clicked!");
 
                         //code of navigation
                         initalizeAboutPage();
                         optionPagePrimaryStage.setScene(about2Scene);
                 });
 
-                //  aboutButton.setOnMouseEntered(e -> {
-                //  aboutButton.setStyle("-fx-border-color: #446bfaff;" + "-fx-border-width: 3px;" + "-fx-border-radius: 50px;" +"-fx-background-color: linear-gradient(from 0% 0% to 100% 100%,#446bfaff,rgb(197, 240, 242));" +"-fx-background-radius: 50px;" +"-fx-padding: 20px;");});
-                //  aboutButton.setOnMouseExited(e -> {
-                //  aboutButton.setStyle("-fx-border-color: #a9d8fcff;" + "-fx-border-width: 3px;" + "-fx-border-radius: 50px;" +"-fx-background-color: linear-gradient(from 0% 0% to 100% 100%,rgb(255, 255, 255),rgb(197, 240, 242));" +"-fx-background-radius: 50px;" +"-fx-padding: 20px;");});
-
                 VBox heightVBox = new VBox();
                 heightVBox.setPrefHeight(10);
 
-       
+        // Welcome text showing logged-in user
+        Text welcomeText = new Text("Welcome, " + (session.getFullName() != null ? session.getFullName() : "User") + "!");
+        welcomeText.setStyle("-fx-font-size: 28px; -fx-fill: DARKSLATEGRAY; -fx-font-weight: bold; -fx-font-family: Comic Sans MS");
+        
+        Text roleText = new Text("Your Role: " + (userRole != null ? userRole.substring(0, 1).toUpperCase() + userRole.substring(1) : "Unknown"));
+        roleText.setStyle("-fx-font-size: 16px; -fx-fill: #666666; -fx-font-family: Comic Sans MS");
+
+        VBox welcomeBox = new VBox(5, welcomeText, roleText);
+        welcomeBox.setAlignment(Pos.CENTER);
 
 //
-        VBox optionPageVBox = new VBox(50,adminVBox,residentVBox,guestVBox,heightVBox,aboutButton);
+        VBox optionPageVBox = new VBox(30, welcomeBox, adminVBox,residentVBox,guestVBox,heightVBox,aboutButton);
         optionPageVBox .setAlignment(Pos.CENTER);
         optionPageVBox.setPrefWidth(50);
         optionPageVBox.setPrefHeight(200);
@@ -193,6 +221,17 @@ public class OptionPage  {
 
     
 }
+
+        /**
+         * Show access denied alert dialog
+         */
+        private void showAccessDeniedAlert(String title, String message) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(title);
+            alert.setHeaderText("Access Restricted");
+            alert.setContentText(message);
+            alert.showAndWait();
+        }
 
         private void initalizeAdminHomePage(){
 
@@ -244,7 +283,3 @@ public class OptionPage  {
     }
 
 }
-
-
-
-  
