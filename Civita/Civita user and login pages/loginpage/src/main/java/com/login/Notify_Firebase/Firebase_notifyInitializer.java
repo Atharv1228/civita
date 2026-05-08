@@ -10,24 +10,44 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 public class Firebase_notifyInitializer {
+    private static boolean initialized = false;
+
+    static {
+        init();
+    }
+
     public static void init() {
-        try {
-            // 🔍 Add this line to debug file path
-            System.out.println("Working Dir: " + System.getProperty("user.dir"));
-            FileInputStream serviceAccount = new FileInputStream("demo/src/main/resources/firebase-key.json");
+        if (!initialized) {
+            try {
+                System.out.println("[Firebase Notification] Initializing Firebase...");
+                System.out.println("[Firebase Notification] Working Directory: " + System.getProperty("user.dir"));
+                
+                if (FirebaseApp.getApps().isEmpty()) {
+                    // Use the correct path to the service account key
+                    FileInputStream serviceAccount = new FileInputStream("src\\main\\resources\\civita-alpha-firebase-adminsdk-fbsvc-0ca705c544.json");
 
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .build();
+                    FirebaseOptions options = FirebaseOptions.builder()
+                            .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                            .build();
 
-            FirebaseApp.initializeApp(options);
-            System.out.println("✅ Firebase initialized successfully");
-        } catch (IOException e) {
-            e.printStackTrace(); // 🔥 Always print for debugging
+                    FirebaseApp.initializeApp(options);
+                    initialized = true;
+                    System.out.println("[Firebase Notification] ✅ Firebase initialized successfully");
+                } else {
+                    initialized = true;
+                    System.out.println("[Firebase Notification] Firebase already initialized");
+                }
+            } catch (IOException e) {
+                System.err.println("[Firebase Notification] ❌ Error initializing Firebase: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
 
     public static Firestore getFirestore() {
+        if (!initialized) {
+            init();
+        }
         return FirestoreClient.getFirestore();
     }
 }

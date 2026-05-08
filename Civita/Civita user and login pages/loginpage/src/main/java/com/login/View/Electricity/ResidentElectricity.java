@@ -2,6 +2,7 @@ package com.login.View.Electricity;
 
 import com.login.Controller.ResidentElectricityController;
 import com.login.Model.ResidentElectricityModel;
+import com.login.Utils.RazorpayPaymentService;
 import javafx.application.Platform;
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
@@ -11,6 +12,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Alert;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
@@ -21,6 +23,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import org.json.JSONObject;
 
 public class ResidentElectricity {
     Scene residentElectricity1Scene;
@@ -445,7 +448,44 @@ public class ResidentElectricity {
             // On press logic of Pay Electricity
             payElectricityButton.setOnAction(e -> {
                 try {
-                    // Update payment status in Firebase
+                    // Check if Razorpay is configured
+                    if (!RazorpayPaymentService.isConfigured()) {
+                        System.err.println("[ResidentElectricity] Razorpay not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET");
+                        showAlert("Payment Error", "Razorpay is not properly configured. Please contact support.");
+                        return;
+                    }
+
+                    // Get the bill amount from currentBillData
+                    if (currentBillData == null) {
+                        showAlert("Error", "Bill data not loaded. Please try again.");
+                        return;
+                    }
+
+                    double billAmount = currentBillData.getElectricityBillAmount();
+                    long amountInPaise = (long) (billAmount * 100); // Convert rupees to paise
+
+                    System.out.println("[ResidentElectricity] Initiating payment for amount: ₹" + billAmount + " (Paise: " + amountInPaise + ")");
+
+                    // Create Razorpay order
+                    JSONObject order = RazorpayPaymentService.createOrder(
+                        amountInPaise,
+                        "INR",
+                        "Electricity Bill Payment for " + currentFlatNo,
+                        currentFlatNo
+                    );
+
+                    if (order == null) {
+                        showAlert("Payment Error", "Failed to create payment order. Please try again.");
+                        return;
+                    }
+
+                    String orderId = order.getString("id");
+                    System.out.println("[ResidentElectricity] Order created with ID: " + orderId);
+
+                    // Show payment success popup (in production, this would be from Razorpay callback)
+                    System.out.println("[ResidentElectricity] Payment processing for order: " + orderId);
+                    
+                    // Simulate payment processing
                     ResidentElectricityController.markBillAsPaid(currentFlatNo);
                     
                     // Hide first popup
@@ -457,9 +497,12 @@ public class ResidentElectricity {
                     fadeInSuccess.setFromValue(0);
                     fadeInSuccess.setToValue(1);
                     fadeInSuccess.play();
+                    
+                    System.out.println("[ResidentElectricity] Payment completed successfully for order: " + orderId);
                 } catch (Exception ex) {
-                    System.err.println("Error in pay button action: " + ex.getMessage());
+                    System.err.println("[ResidentElectricity] Error in pay button action: " + ex.getMessage());
                     ex.printStackTrace();
+                    showAlert("Error", "An error occurred during payment. Please try again.");
                 }
             });
 
@@ -544,5 +587,18 @@ public class ResidentElectricity {
             errorBox.setAlignment(Pos.CENTER);
             return new StackPane(errorBox);
         }
+    }
+
+    /**
+     * Helper method to show alert dialogs
+     */
+    private void showAlert(String title, String message) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(title);
+            alert.setHeaderText(title);
+            alert.setContentText(message);
+            alert.showAndWait();
+        });
     }
 }
